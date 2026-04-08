@@ -16,27 +16,33 @@ export default function Home() {
     fetchReels()
   }, [])
 
-  // 🎲 Shuffle
-  const shuffleArray = (array: any[]) => {
-    return [...array].sort(() => Math.random() - 0.5)
+  // 🔥 PROPER SHUFFLE
+  const shuffleArray = (array: any[], currentId?: string) => {
+    const newArray = [...array]
+
+    for (let i = newArray.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[newArray[i], newArray[j]] = [newArray[j], newArray[i]]
+    }
+
+    if (currentId && newArray[0]?.id === currentId && newArray.length > 1) {
+      ;[newArray[0], newArray[1]] = [newArray[1], newArray[0]]
+    }
+
+    return newArray
   }
 
   const fetchReels = async () => {
-    const { data, error } = await supabase
-      .from("reels")
-      .select("*")
-
-    if (!error && data) {
-      setReels(shuffleArray(data))
-    }
-
+    const { data } = await supabase.from("reels").select("*")
+    if (data) setReels(shuffleArray(data))
     setLoading(false)
   }
 
-  // 🔄 Auto refresh every 5 reels
+  // 🔄 Auto refresh
   useEffect(() => {
     if (viewCount !== 0 && viewCount % 5 === 0) {
-      setReels(shuffleArray(reels))
+      const current = reels[activeIndex % reels.length]
+      setReels(shuffleArray(reels, current?.id))
 
       if (feedRef.current) {
         feedRef.current.scrollTop = 0
@@ -46,31 +52,19 @@ export default function Home() {
     }
   }, [viewCount])
 
-  // 🔄 Loading
   if (loading) {
-    return (
-      <div className="bg-black text-white h-screen flex items-center justify-center">
-        Loading...
-      </div>
-    )
+    return <div className="bg-black text-white h-screen flex items-center justify-center">Loading...</div>
   }
 
-  // ❌ Empty
   if (reels.length === 0) {
-    return (
-      <div className="bg-black text-white h-screen flex items-center justify-center">
-        No reels found
-      </div>
-    )
+    return <div className="bg-black text-white h-screen flex items-center justify-center">No reels found</div>
   }
 
-  // 🔁 Infinite list
   const extendedReels = [...reels, ...reels, ...reels]
 
   return (
     <div className="bg-black text-white h-screen w-screen relative overflow-hidden">
 
-      {/* 📺 FEED */}
       <div
         ref={feedRef}
         className="h-full overflow-y-scroll snap-y snap-mandatory scroll-smooth"
@@ -83,7 +77,6 @@ export default function Home() {
             setActiveIndex(index % reels.length)
             setViewCount((prev) => prev + 1)
 
-            // 🔥 FORCE SNAP (fix multi skip)
             if (feedRef.current) {
               feedRef.current.scrollTo({
                 top: index * height,
@@ -92,7 +85,6 @@ export default function Home() {
             }
           }
 
-          // infinite reset
           if (feedRef.current) {
             const maxScroll = reels.length * height
             if (feedRef.current.scrollTop > maxScroll * 2) {
@@ -108,11 +100,7 @@ export default function Home() {
           const currentIndex = index % reels.length
 
           return (
-            <div
-              key={index}
-              className="h-screen w-screen flex items-center justify-center snap-start relative bg-black"
-            >
-              {/* 🎥 ONLY ACTIVE REEL */}
+            <div key={index} className="h-screen w-screen flex items-center justify-center snap-start relative bg-black">
               {activeIndex === currentIndex && (
                 <iframe
                   key={activeIndex}
@@ -121,36 +109,32 @@ export default function Home() {
                   allow="autoplay; encrypted-media"
                 />
               )}
-
-              {/* 🔄 Refresh hint */}
-              {viewCount % 5 === 4 && (
-                <div className="absolute bottom-10 text-white/40 text-xs">
-                  Refreshing...
-                </div>
-              )}
             </div>
           )
         })}
       </div>
 
-      {/* 🎛️ CONTROLS */}
+      {/* CONTROLS */}
       <div className="absolute top-4 right-[50px] flex flex-col gap-2 z-50">
 
-        {/* 🔀 Shuffle */}
         <button
           onClick={() => {
-            setReels(shuffleArray(reels))
+            const current = reels[activeIndex % reels.length]
+            const shuffled = shuffleArray(reels, current?.id)
+
+            setReels(shuffled)
+
             if (feedRef.current) {
               feedRef.current.scrollTop = 0
             }
+
             setActiveIndex(0)
           }}
-          className="bg-white/10 backdrop-blur-md text-white text-xs px-3 py-1 rounded-full opacity-70 hover:opacity-100 transition"
+          className="bg-white/10 backdrop-blur-md text-white text-xs px-3 py-1 rounded-full"
         >
           Shuffle
         </button>
 
-        {/* 🗑 Delete (with confirmation) */}
         <button
           onClick={async () => {
             if (!confirm("Delete this reel?")) return
@@ -161,14 +145,14 @@ export default function Home() {
             await supabase.from("reels").delete().eq("id", current.id)
             fetchReels()
           }}
-          className="bg-white/10 backdrop-blur-md text-white text-xs px-3 py-1 rounded-full opacity-70 hover:opacity-100 transition"
+          className="bg-white/10 backdrop-blur-md text-white text-xs px-3 py-1 rounded-full"
         >
           Delete
         </button>
 
       </div>
 
-      {/* 👉 RIGHT SCROLL STRIP */}
+      {/* SCROLL STRIP */}
       <div
         className="absolute top-0 right-0 h-full w-[40px] z-40 bg-white/5"
         onTouchStart={(e) => {
