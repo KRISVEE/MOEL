@@ -7,6 +7,7 @@ export default function Home() {
   const [reels, setReels] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [activeIndex, setActiveIndex] = useState(0)
+  const [viewCount, setViewCount] = useState(0)
 
   const feedRef = useRef<HTMLDivElement | null>(null)
   const lastY = useRef(0)
@@ -31,6 +32,19 @@ export default function Home() {
 
     setLoading(false)
   }
+
+  // 🔄 Auto refresh every 5 reels
+  useEffect(() => {
+    if (viewCount !== 0 && viewCount % 5 === 0) {
+      setReels(shuffleArray(reels))
+
+      if (feedRef.current) {
+        feedRef.current.scrollTop = 0
+      }
+
+      setActiveIndex(0)
+    }
+  }, [viewCount])
 
   // 🔄 Loading
   if (loading) {
@@ -65,9 +79,12 @@ export default function Home() {
           const height = window.innerHeight
           const index = Math.round(scrollTop / height)
 
-          setActiveIndex(index % reels.length)
+          if (index !== activeIndex) {
+            setActiveIndex(index % reels.length)
+            setViewCount((prev) => prev + 1)
+          }
 
-          // 🔁 Reset scroll for infinite feel
+          // infinite reset
           if (feedRef.current) {
             const maxScroll = reels.length * height
             if (feedRef.current.scrollTop > maxScroll * 2) {
@@ -90,11 +107,18 @@ export default function Home() {
               {/* 🎥 ONLY ACTIVE REEL */}
               {activeIndex === currentIndex && (
                 <iframe
-                  key={activeIndex} // 🔥 force reset
+                  key={activeIndex}
                   src={`https://www.instagram.com/reel/${reelId}/embed/captioned`}
                   className="w-full h-full border-0"
                   allow="autoplay; encrypted-media"
                 />
+              )}
+
+              {/* 🔄 Refresh hint */}
+              {viewCount % 5 === 4 && (
+                <div className="absolute bottom-10 text-white/40 text-xs">
+                  Refreshing...
+                </div>
               )}
             </div>
           )
@@ -106,13 +130,19 @@ export default function Home() {
 
         {/* 🔀 Shuffle */}
         <button
-          onClick={() => setReels(shuffleArray(reels))}
+          onClick={() => {
+            setReels(shuffleArray(reels))
+            if (feedRef.current) {
+              feedRef.current.scrollTop = 0
+            }
+            setActiveIndex(0)
+          }}
           className="bg-white/10 backdrop-blur-md text-white text-xs px-3 py-1 rounded-full opacity-70 hover:opacity-100 transition"
         >
           Shuffle
         </button>
 
-        {/* 🗑 Delete current */}
+        {/* 🗑 Delete */}
         <button
           onClick={async () => {
             const current = reels[activeIndex % reels.length]
