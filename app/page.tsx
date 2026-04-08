@@ -38,13 +38,34 @@ export default function Home() {
     setLoading(false)
   }
 
-  // 🔄 Loading
+  // 🔄 Auto refresh every 5 reels
+  useEffect(() => {
+    if (viewCount !== 0 && viewCount % 5 === 0) {
+      const current = reels[activeIndex % reels.length]
+      setReels(shuffleArray(reels, current?.id))
+
+      if (feedRef.current) {
+        feedRef.current.scrollTop = 0
+      }
+
+      setActiveIndex(0)
+    }
+  }, [viewCount])
+
   if (loading) {
-    return <div className="bg-black text-white h-screen flex items-center justify-center">Loading...</div>
+    return (
+      <div className="bg-black text-white h-screen flex items-center justify-center">
+        Loading...
+      </div>
+    )
   }
 
   if (reels.length === 0) {
-    return <div className="bg-black text-white h-screen flex items-center justify-center">No reels found</div>
+    return (
+      <div className="bg-black text-white h-screen flex items-center justify-center">
+        No reels found
+      </div>
+    )
   }
 
   const extendedReels = [...reels, ...reels, ...reels]
@@ -52,6 +73,7 @@ export default function Home() {
   return (
     <div className="bg-black text-white h-screen w-screen relative overflow-hidden">
 
+      {/* 📺 FEED */}
       <div
         ref={feedRef}
         className="h-full overflow-y-scroll snap-y snap-mandatory scroll-smooth"
@@ -87,7 +109,11 @@ export default function Home() {
           const currentIndex = index % reels.length
 
           return (
-            <div key={index} className="h-screen w-screen flex items-center justify-center snap-start relative bg-black">
+            <div
+              key={index}
+              className="h-screen w-screen flex items-center justify-center snap-start relative bg-black"
+            >
+              {/* 🎥 ONLY ACTIVE REEL */}
               {activeIndex === currentIndex && (
                 <iframe
                   key={activeIndex}
@@ -108,18 +134,29 @@ export default function Home() {
         })}
       </div>
 
-      {/* 🎛️ CONTROLS */}
-      <div className="absolute top-4 right-[50px] flex flex-col gap-2 z-50">
+      {/* 🎛️ CONTROLS (ICON STYLE) */}
+      <div className="absolute top-4 right-4 flex flex-col gap-3 z-50">
 
-        {/* 🔀 Shuffle */}
+        {/* Shuffle */}
         <button
-          onClick={() => setReels(shuffleArray(reels))}
-          className="bg-white/10 backdrop-blur-md text-white text-xs px-3 py-1 rounded-full opacity-70 hover:opacity-100 transition"
+          onClick={() => {
+            const current = reels[activeIndex % reels.length]
+            const shuffled = shuffleArray(reels, current?.id)
+
+            setReels(shuffled)
+
+            if (feedRef.current) {
+              feedRef.current.scrollTop = 0
+            }
+
+            setActiveIndex(0)
+          }}
+          className="bg-white/10 backdrop-blur-md text-white p-2 rounded-full opacity-70 hover:opacity-100 transition"
         >
           <Shuffle size={16} />
         </button>
 
-        {/* 🗑 Delete current */}
+        {/* Delete */}
         <button
           onClick={async () => {
             if (!confirm("Delete this reel?")) return
@@ -130,30 +167,12 @@ export default function Home() {
             await supabase.from("reels").delete().eq("id", current.id)
             fetchReels()
           }}
-          className="bg-white/10 backdrop-blur-md text-white text-xs px-3 py-1 rounded-full opacity-70 hover:opacity-100 transition"
+          className="bg-white/10 backdrop-blur-md text-white p-2 rounded-full opacity-70 hover:opacity-100 transition"
         >
           <Trash2 size={16} />
         </button>
 
       </div>
-
-      {/* 👉 RIGHT SCROLL STRIP */}
-      <div
-        className="absolute top-0 right-0 h-full w-[40px] z-40 bg-white/5"
-        onTouchStart={(e) => {
-          lastY.current = e.touches[0].clientY
-        }}
-        onTouchMove={(e) => {
-          const currentY = e.touches[0].clientY
-          const diff = lastY.current - currentY
-
-          if (feedRef.current) {
-            feedRef.current.scrollTop += diff
-          }
-
-          lastY.current = currentY
-        }}
-      />
 
     </div>
   )
