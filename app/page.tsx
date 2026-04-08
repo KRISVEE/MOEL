@@ -10,30 +10,26 @@ export default function Home() {
   const [viewCount, setViewCount] = useState(0)
 
   const feedRef = useRef<HTMLDivElement | null>(null)
+  const lastY = useRef(0)
 
   useEffect(() => {
     fetchReels()
   }, [])
 
-  // 🎲 Fisher-Yates
-  const shuffleArray = (array: any[]) => {
+  // 🔥 PROPER SHUFFLE
+  const shuffleArray = (array: any[], currentId?: string) => {
     const newArray = [...array]
+
     for (let i = newArray.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1))
       ;[newArray[i], newArray[j]] = [newArray[j], newArray[i]]
     }
+
+    if (currentId && newArray[0]?.id === currentId && newArray.length > 1) {
+      ;[newArray[0], newArray[1]] = [newArray[1], newArray[0]]
+    }
+
     return newArray
-  }
-
-  // 🔥 Smart shuffle (TikTok feel)
-  const smartShuffle = () => {
-    const current = reels[activeIndex]
-    const rest = reels.filter((_, i) => i !== activeIndex)
-
-    const shuffledRest = shuffleArray(rest)
-
-    const newReels = [current, ...shuffledRest]
-    setReels(newReels)
   }
 
   const fetchReels = async () => {
@@ -42,56 +38,70 @@ export default function Home() {
     setLoading(false)
   }
 
-  // 🔄 Auto refresh (smooth, no jump)
+  // 🔄 Auto refresh
   useEffect(() => {
     if (viewCount !== 0 && viewCount % 5 === 0) {
-      smartShuffle()
+      const current = reels[activeIndex % reels.length]
+      setReels(shuffleArray(reels, current?.id))
+
+      if (feedRef.current) {
+        feedRef.current.scrollTop = 0
+      }
+
+      setActiveIndex(0)
     }
   }, [viewCount])
 
   if (loading) {
-    return (
-      <div className="bg-black text-white h-screen flex items-center justify-center">
-        Loading...
-      </div>
-    )
+    return <div className="bg-black text-white h-screen flex items-center justify-center">Loading...</div>
   }
 
   if (reels.length === 0) {
-    return (
-      <div className="bg-black text-white h-screen flex items-center justify-center">
-        No reels found
-      </div>
-    )
+    return <div className="bg-black text-white h-screen flex items-center justify-center">No reels found</div>
   }
 
-  return (
-    <div className="bg-black text-white h-screen w-screen overflow-y-scroll snap-y snap-mandatory">
+  const extendedReels = [...reels, ...reels, ...reels]
 
-      {/* 📺 FEED */}
+  return (
+    <div className="bg-black text-white h-screen w-screen relative overflow-hidden">
+
       <div
         ref={feedRef}
+        className="h-full overflow-y-scroll snap-y snap-mandatory scroll-smooth"
         onScroll={(e) => {
           const scrollTop = e.currentTarget.scrollTop
           const height = window.innerHeight
           const index = Math.round(scrollTop / height)
 
           if (index !== activeIndex) {
-            setActiveIndex(index)
+            setActiveIndex(index % reels.length)
             setViewCount((prev) => prev + 1)
+
+            if (feedRef.current) {
+              feedRef.current.scrollTo({
+                top: index * height,
+                behavior: "smooth",
+              })
+            }
+          }
+
+          if (feedRef.current) {
+            const maxScroll = reels.length * height
+            if (feedRef.current.scrollTop > maxScroll * 2) {
+              feedRef.current.scrollTop = maxScroll
+            }
           }
         }}
       >
-        {reels.map((reel, index) => {
+        {extendedReels.map((reel, index) => {
           const reelId = reel.url.match(/reel\/([^/?]+)/)?.[1]
           if (!reelId) return null
 
+          const currentIndex = index % reels.length
+
           return (
-            <div
-              key={reel.id}
-              className="h-screen w-screen flex items-center justify-center snap-start relative bg-black"
-            >
-              {activeIndex === index && (
+            <div key={index} className="h-screen w-screen flex items-center justify-center snap-start relative bg-black">
+              {activeIndex === currentIndex && (
                 <iframe
                   key={activeIndex}
                   src={`https://www.instagram.com/reel/${reelId}/embed/captioned`}
@@ -104,35 +114,62 @@ export default function Home() {
         })}
       </div>
 
-      {/* 🎛️ ICON CONTROLS */}
-      <div className="absolute top-4 right-4 flex flex-col gap-3 z-50">
+      {/* CONTROLS */}
+      <div className="absolute top-4 right-[50px] flex flex-col gap-2 z-50">
 
-        {/* 🔀 Shuffle */}
         <button
-          onClick={smartShuffle}
-          className="w-10 h-10 flex items-center justify-center bg-white/10 backdrop-blur-md text-white rounded-full text-lg"
+          onClick={() => {
+            const current = reels[activeIndex % reels.length]
+            const shuffled = shuffleArray(reels, current?.id)
+
+            setReels(shuffled)
+
+            if (feedRef.current) {
+              feedRef.current.scrollTop = 0
+            }
+
+            setActiveIndex(0)
+          }}
+          className="bg-white/10 backdrop-blur-md text-white text-xs px-3 py-1 rounded-full"
         >
-          🔀
+          Shuffle
         </button>
 
-        {/* 🗑 Delete */}
         <button
           onClick={async () => {
             if (!confirm("Delete this reel?")) return
 
-            const current = reels[activeIndex]
+            const current = reels[activeIndex % reels.length]
             if (!current) return
 
             await supabase.from("reels").delete().eq("id", current.id)
-
             fetchReels()
           }}
-          className="w-10 h-10 flex items-center justify-center bg-white/10 backdrop-blur-md text-white rounded-full text-lg"
+          className="bg-white/10 backdrop-blur-md text-white text-xs px-3 py-1 rounded-full"
         >
-          🗑
+          Delete
         </button>
 
       </div>
+
+      {/* SCROLL STRIP */}
+      <div
+        className="absolute top-0 right-0 h-full w-[40px] z-40 bg-white/5"
+        onTouchStart={(e) => {
+          lastY.current = e.touches[0].clientY
+        }}
+        onTouchMove={(e) => {
+          const currentY = e.touches[0].clientY
+          const diff = lastY.current - currentY
+
+          if (feedRef.current) {
+            feedRef.current.scrollTop += diff
+          }
+
+          lastY.current = currentY
+        }}
+      />
+
     </div>
   )
 }
