@@ -82,6 +82,14 @@ export default function Home() {
           if (index !== activeIndex) {
             setActiveIndex(index % reels.length)
             setViewCount((prev) => prev + 1)
+
+            // 🔥 FORCE SNAP (fix multi skip)
+            if (feedRef.current) {
+              feedRef.current.scrollTo({
+                top: index * height,
+                behavior: "smooth",
+              })
+            }
           }
 
           // infinite reset
@@ -142,9 +150,11 @@ export default function Home() {
           Shuffle
         </button>
 
-        {/* 🗑 Delete */}
+        {/* 🗑 Delete (with confirmation) */}
         <button
           onClick={async () => {
+            if (!confirm("Delete this reel?")) return
+
             const current = reels[activeIndex % reels.length]
             if (!current) return
 
