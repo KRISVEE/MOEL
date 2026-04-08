@@ -16,7 +16,6 @@ export default function Home() {
     fetchReels()
   }, [])
 
-  // 🔥 PROPER SHUFFLE
   const shuffleArray = (array: any[], currentId?: string) => {
     const newArray = [...array]
 
@@ -38,7 +37,6 @@ export default function Home() {
     setLoading(false)
   }
 
-  // 🔄 Auto refresh every 5 reels
   useEffect(() => {
     if (viewCount !== 0 && viewCount % 5 === 0) {
       const current = reels[activeIndex % reels.length]
@@ -73,7 +71,7 @@ export default function Home() {
   return (
     <div className="bg-black text-white h-screen w-screen relative overflow-hidden">
 
-      {/* 📺 FEED */}
+      {/* FEED */}
       <div
         ref={feedRef}
         className="h-full overflow-y-scroll snap-y snap-mandatory scroll-smooth"
@@ -113,7 +111,6 @@ export default function Home() {
               key={index}
               className="h-screen w-screen flex items-center justify-center snap-start relative bg-black"
             >
-              {/* 🎥 ONLY ACTIVE REEL */}
               {activeIndex === currentIndex && (
                 <iframe
                   key={activeIndex}
@@ -123,7 +120,6 @@ export default function Home() {
                 />
               )}
 
-              {/* 🔄 Refresh hint */}
               {viewCount % 5 === 4 && (
                 <div className="absolute bottom-10 text-white/40 text-xs">
                   Refreshing...
@@ -134,7 +130,7 @@ export default function Home() {
         })}
       </div>
 
-      {/* 🎛️ CONTROLS (ICON STYLE) */}
+      {/* CONTROLS (VISIBLE ALWAYS) */}
       <div className="absolute top-4 right-4 flex flex-col gap-3 z-50">
 
         {/* Shuffle */}
@@ -151,7 +147,7 @@ export default function Home() {
 
             setActiveIndex(0)
           }}
-          className="bg-white/10 backdrop-blur-md text-white p-2 rounded-full opacity-70 hover:opacity-100 transition"
+          className="bg-black/40 backdrop-blur-xl border border-white/20 text-white p-2 rounded-full shadow-lg active:scale-95 transition"
         >
           <Shuffle size={16} />
         </button>
@@ -167,7 +163,7 @@ export default function Home() {
             await supabase.from("reels").delete().eq("id", current.id)
             fetchReels()
           }}
-          className="bg-white/10 backdrop-blur-md text-white p-2 rounded-full opacity-70 hover:opacity-100 transition"
+          className="bg-black/40 backdrop-blur-xl border border-white/20 text-white p-2 rounded-full shadow-lg active:scale-95 transition"
         >
           <Trash2 size={16} />
         </button>
