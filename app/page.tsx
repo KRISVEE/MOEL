@@ -2,37 +2,56 @@
 
 import { useEffect, useState, useRef } from "react"
 import { supabase } from "@/lib/supabase"
+import { Shuffle, Trash2 } from "lucide-react"
 
 export default function Home() {
   const [reels, setReels] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [activeIndex, setActiveIndex] = useState(0)
+  const [viewCount, setViewCount] = useState(0)
 
   const feedRef = useRef<HTMLDivElement | null>(null)
-  const lastY = useRef(0)
 
   useEffect(() => {
     fetchReels()
   }, [])
 
-  // 🎲 Shuffle
-  const shuffleArray = (array: any[]) => {
-    return [...array].sort(() => Math.random() - 0.5)
+  // 🔥 PROPER SHUFFLE
+  const shuffleArray = (array: any[], currentId?: string) => {
+    const newArray = [...array]
+
+    for (let i = newArray.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[newArray[i], newArray[j]] = [newArray[j], newArray[i]]
+    }
+
+    if (currentId && newArray[0]?.id === currentId && newArray.length > 1) {
+      ;[newArray[0], newArray[1]] = [newArray[1], newArray[0]]
+    }
+
+    return newArray
   }
 
   const fetchReels = async () => {
-    const { data, error } = await supabase
-      .from("reels")
-      .select("*")
-
-    if (!error && data) {
-      setReels(shuffleArray(data))
-    }
-
+    const { data } = await supabase.from("reels").select("*")
+    if (data) setReels(shuffleArray(data))
     setLoading(false)
   }
 
-  // 🔄 Loading
+  // 🔄 Auto refresh every 5 reels
+  useEffect(() => {
+    if (viewCount !== 0 && viewCount % 5 === 0) {
+      const current = reels[activeIndex % reels.length]
+      setReels(shuffleArray(reels, current?.id))
+
+      if (feedRef.current) {
+        feedRef.current.scrollTop = 0
+      }
+
+      setActiveIndex(0)
+    }
+  }, [viewCount])
+
   if (loading) {
     return (
       <div className="bg-black text-white h-screen flex items-center justify-center">
@@ -41,7 +60,6 @@ export default function Home() {
     )
   }
 
-  // ❌ Empty
   if (reels.length === 0) {
     return (
       <div className="bg-black text-white h-screen flex items-center justify-center">
@@ -50,7 +68,6 @@ export default function Home() {
     )
   }
 
-  // 🔁 Infinite list
   const extendedReels = [...reels, ...reels, ...reels]
 
   return (
@@ -65,9 +82,18 @@ export default function Home() {
           const height = window.innerHeight
           const index = Math.round(scrollTop / height)
 
-          setActiveIndex(index % reels.length)
+          if (index !== activeIndex) {
+            setActiveIndex(index % reels.length)
+            setViewCount((prev) => prev + 1)
 
-          // 🔁 Reset scroll for infinite feel
+            if (feedRef.current) {
+              feedRef.current.scrollTo({
+                top: index * height,
+                behavior: "smooth",
+              })
+            }
+          }
+
           if (feedRef.current) {
             const maxScroll = reels.length * height
             if (feedRef.current.scrollTop > maxScroll * 2) {
@@ -90,61 +116,63 @@ export default function Home() {
               {/* 🎥 ONLY ACTIVE REEL */}
               {activeIndex === currentIndex && (
                 <iframe
-                  key={activeIndex} // 🔥 force reset
+                  key={activeIndex}
                   src={`https://www.instagram.com/reel/${reelId}/embed/captioned`}
                   className="w-full h-full border-0"
                   allow="autoplay; encrypted-media"
                 />
+              )}
+
+              {/* 🔄 Refresh hint */}
+              {viewCount % 5 === 4 && (
+                <div className="absolute bottom-10 text-white/40 text-xs">
+                  Refreshing...
+                </div>
               )}
             </div>
           )
         })}
       </div>
 
-      {/* 🎛️ CONTROLS */}
-      <div className="absolute top-4 right-[50px] flex flex-col gap-2 z-50">
+      {/* 🎛️ CONTROLS (ICON STYLE) */}
+      <div className="absolute top-4 right-4 flex flex-col gap-3 z-50">
 
-        {/* 🔀 Shuffle */}
+        {/* Shuffle */}
         <button
-          onClick={() => setReels(shuffleArray(reels))}
-          className="bg-white/10 backdrop-blur-md text-white text-xs px-3 py-1 rounded-full opacity-70 hover:opacity-100 transition"
+          onClick={() => {
+            const current = reels[activeIndex % reels.length]
+            const shuffled = shuffleArray(reels, current?.id)
+
+            setReels(shuffled)
+
+            if (feedRef.current) {
+              feedRef.current.scrollTop = 0
+            }
+
+            setActiveIndex(0)
+          }}
+          className="bg-white/10 backdrop-blur-md text-white p-2 rounded-full opacity-70 hover:opacity-100 transition"
         >
-          Shuffle
+          <Shuffle size={16} />
         </button>
 
-        {/* 🗑 Delete current */}
+        {/* Delete */}
         <button
           onClick={async () => {
+            if (!confirm("Delete this reel?")) return
+
             const current = reels[activeIndex % reels.length]
             if (!current) return
 
             await supabase.from("reels").delete().eq("id", current.id)
             fetchReels()
           }}
-          className="bg-white/10 backdrop-blur-md text-white text-xs px-3 py-1 rounded-full opacity-70 hover:opacity-100 transition"
+          className="bg-white/10 backdrop-blur-md text-white p-2 rounded-full opacity-70 hover:opacity-100 transition"
         >
-          Delete
+          <Trash2 size={16} />
         </button>
 
       </div>
-
-      {/* 👉 RIGHT SCROLL STRIP */}
-      <div
-        className="absolute top-0 right-0 h-full w-[40px] z-40 bg-white/5"
-        onTouchStart={(e) => {
-          lastY.current = e.touches[0].clientY
-        }}
-        onTouchMove={(e) => {
-          const currentY = e.touches[0].clientY
-          const diff = lastY.current - currentY
-
-          if (feedRef.current) {
-            feedRef.current.scrollTop += diff
-          }
-
-          lastY.current = currentY
-        }}
-      />
 
     </div>
   )
